@@ -90,7 +90,7 @@ public class Client {
                 bufferedWriter.close();
             }
             if (socket != null) {
-                socket.close();                                 // se inchise si socker iostream
+                socket.close();
             }
         } catch (IOException e) {
             e.printStackTrace();

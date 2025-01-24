@@ -9,7 +9,7 @@ import static org.SerializeToBase64.serializeObjectToBase64;
 
 public class ClientHandler implements Runnable {
 
-    public static ArrayList<ClientHandler> clientHandlerArraysList = new ArrayList<ClientHandler>();       // se tine lista cu clientii
+    public static final ArrayList<ClientHandler> clientHandlerArraysList = new ArrayList<ClientHandler>();       // se tine lista cu clientii
     public Socket socket;                       // stabileste conexiune client - server
     private BufferedReader bufferedReader;      // se citesc mesaje
     private BufferedWriter bufferedWriter;      // se trimit mesajele la alti clienti
@@ -26,7 +26,9 @@ public class ClientHandler implements Runnable {
             this.user = messageProtocol.getUser();
 
             // adaugam client-ul in lista de clienti
-            clientHandlerArraysList.add(this);
+            synchronized (clientHandlerArraysList) {
+                clientHandlerArraysList.add(this);
+            }
 
             MessageProtocol messageProtocolToBroadcastFromServer = new MessageProtocol("A wild " + user.getUsername() + " has entered the chat. First name is: "
                     + user.getFirstName() + " and last name is: " + user.getLastName(), Server.ServerUser);
@@ -58,23 +60,27 @@ public class ClientHandler implements Runnable {
     }
 
     public void broadcastMessage(String message) {
-        for (ClientHandler clientHandler : clientHandlerArraysList) {
-            try {
-                if (clientHandler.user.getId() != this.user.getId()) {
-                    clientHandler.bufferedWriter.write(message);
-                    clientHandler.bufferedWriter.newLine();                     // este echivalent cu apasarea enter
-                    clientHandler.bufferedWriter.flush();                       // mesajele se trimit pe buffered fortat (inainte sa fie full)
+        synchronized (clientHandlerArraysList) {
+            for (ClientHandler clientHandler : clientHandlerArraysList) {
+                try {
+                    if (clientHandler.user.getId() != this.user.getId()) {
+                        clientHandler.bufferedWriter.write(message);
+                        clientHandler.bufferedWriter.newLine();                     // este echivalent cu apasarea enter
+                        clientHandler.bufferedWriter.flush();                       // mesajele se trimit pe buffered fortat (inainte sa fie full)
+                    }
+                } catch (IOException e) {
+                    closeAll(socket, bufferedReader, bufferedWriter);
                 }
-            } catch (IOException e) {
-                closeAll(socket, bufferedReader, bufferedWriter);
             }
         }
     }
 
     public void removeClientHandler() {
         try {
-            clientHandlerArraysList.remove(this);
-            MessageProtocol messageProtocolToBroadcastFromServer = new MessageProtocol( "User "+ user.getUsername() + " has left the chat.", Server.ServerUser);
+            synchronized (clientHandlerArraysList) {
+                clientHandlerArraysList.remove(this);
+            }
+            MessageProtocol messageProtocolToBroadcastFromServer = new MessageProtocol("User " + user.getUsername() + " has left the chat.", Server.ServerUser);
 
             String base64MessageToSend = serializeObjectToBase64(messageProtocolToBroadcastFromServer);
 
